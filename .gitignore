@@ -1,0 +1,24 @@
+# Build output and local package cache
+**/bin/
+**/obj/
+.nuget/
+artifacts/
+.runtime/
+
+# Local application bundles and macOS metadata
+/*.app/
+*.app/
+.DS_Store
+
+# Private MyShows exports and local databases
+Профиль.xlsx
+myshows-chatgpt.json
+*.sqlite*
+*.db
+*.db-*
+
+# IDE and transient files
+.vscode/
+*.user
+*.suo
+*.log
