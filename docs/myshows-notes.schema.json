@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MyShows Companion ChatGPT Notes",
+  "description": "Input contract for schemaVersion 1 notes files. The importer additionally verifies that entity mediaId values exist in the local library.",
+  "type": "object",
+  "required": ["schemaVersion", "entityNotes", "tasteNotes"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "entityNotes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["mediaType", "mediaId", "text", "createdAt", "source"],
+        "properties": {
+          "mediaType": {
+            "enum": ["series", "movie"]
+          },
+          "mediaId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$",
+            "description": "The local ID for this exact entity from the current myshows-chatgpt.json export."
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "createdAt": {
+            "$ref": "#/$defs/createdAt"
+          },
+          "source": {
+            "$ref": "#/$defs/source"
+          }
+        }
+      }
+    },
+    "tasteNotes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["text", "createdAt", "source"],
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "createdAt": {
+            "$ref": "#/$defs/createdAt"
+          },
+          "source": {
+            "$ref": "#/$defs/source"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,7})?(?:Z|z|[+-]\\d{2}:\\d{2})$",
+      "description": "ISO 8601 timestamp with an explicit UTC marker or numeric timezone offset."
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    }
+  }
+}

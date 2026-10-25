@@ -14,7 +14,7 @@ Profile exports are useful snapshots, but they are cumbersome to browse and comp
 - Browse series and movies with title search, status and rating filters, and sorting.
 - Keep watched-episode progress and viewing dates from the episode sheet.
 - Record import runs and show records that could not be matched safely.
-- Export a versioned, ChatGPT-friendly JSON library without episode history.
+- Export a versioned, ChatGPT-friendly JSON library with optional entity and global taste notes, without episode history.
 - Build a self-contained macOS arm64 application bundle.
 
 ## Screenshots
@@ -57,7 +57,7 @@ The export does not contain MyShows IDs. Matching therefore does not use title a
 
 ## ChatGPT export
 
-The **Export for ChatGPT** action reads the current local database and saves a UTF-8 JSON file with `schemaVersion: 1`, summary statistics, series, and movies. It includes local IDs, titles, normalized statuses, ratings, and available progress or watched-date fields. It does not include episode history, episode ratings, import history, or warnings. The app does not upload the file; the user chooses whether and where to share it.
+The **Export for ChatGPT** action reads the current local database and saves a UTF-8 JSON file with `schemaVersion: 2`, summary statistics, series, movies, and notes. Each series or movie includes its local ID and a `notes` array; the root includes a `tasteNotes` array. Empty collections are exported as empty arrays. The manual notes loop is: **Export for ChatGPT → discuss → generate a `myshows-notes.json` file → Import ChatGPT notes**. See the [notes workflow](docs/chatgpt-notes-workflow.md) and [v1 input schema](docs/myshows-notes.schema.json). Files are never uploaded automatically. Episode history, episode ratings, import history, and warnings are not exported.
 
 ## Privacy and local-first design
 
@@ -117,5 +117,6 @@ dotnet test MyShowsCompanion.slnx
 - MyShows exports do not provide stable external IDs. Some duplicate-title records and their episode links remain unresolved until an explicit reconciliation feature exists.
 - There is no website sync, authentication, background synchronization, or automatic conflict resolution.
 - The app does not provide recommendations or call the OpenAI API.
+- Notes are append-only; there is no UI for editing or deleting them.
 - Episode ratings are not stored in the domain model or included in ChatGPT export.
 - The macOS bundle is unsigned/not notarized.

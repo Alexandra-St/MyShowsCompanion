@@ -46,6 +46,41 @@ public sealed class LocalDatabaseBootstrapperTests : IDisposable
         Assert.True(File.Exists(legacyPath));
     }
 
+    [Fact]
+    public void AddsNotesTablesToAnExistingDatabaseWithoutChangingLibraryOrImportHistory()
+    {
+        var path = Path.Combine(_directory, "existing.sqlite3");
+        Seed(path, "Keep this data");
+        using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = path }.ToString()))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                DROP TRIGGER TR_AssistantNote_ValidateInsert;
+                DROP TRIGGER TR_AssistantNote_ValidateUpdate;
+                DROP TRIGGER TR_Series_KeepAssistantNotes;
+                DROP TRIGGER TR_Movie_KeepAssistantNotes;
+                DROP INDEX IX_AssistantNote_Media;
+                DROP INDEX IX_TasteNote_CreatedAt;
+                DROP TABLE AssistantNote;
+                DROP TABLE TasteNote;
+                """;
+            command.ExecuteNonQuery();
+        }
+
+        var migrated = new SqliteStore(path);
+        migrated.Initialize();
+
+        using var current = migrated.OpenReadOnly();
+        Assert.Equal("Keep this data", ReadSingleTitle(current));
+        Assert.Equal(1, CountRows(current, "Series"));
+        Assert.Equal(1, CountRows(current, "Movie"));
+        Assert.Equal(1, CountRows(current, "WatchedEpisode"));
+        Assert.Equal(1, CountRows(current, "ImportRun"));
+        Assert.Equal(0, CountRows(current, "AssistantNote"));
+        Assert.Equal(0, CountRows(current, "TasteNote"));
+    }
+
     private static void Seed(string path, string title)
     {
         var store = new SqliteStore(path);

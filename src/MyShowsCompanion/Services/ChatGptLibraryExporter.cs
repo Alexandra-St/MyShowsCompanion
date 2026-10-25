@@ -1,6 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Encodings.Web;
+using Microsoft.Data.Sqlite;
+using MyShowsCompanion.Domain;
 using MyShowsCompanion.Storage;
 
 namespace MyShowsCompanion.Services;
@@ -10,7 +12,8 @@ public sealed record ChatGptLibraryExport(
     DateTimeOffset GeneratedAt,
     ChatGptExportStatistics Statistics,
     IReadOnlyList<ChatGptSeries> Series,
-    IReadOnlyList<ChatGptMovie> Movies);
+    IReadOnlyList<ChatGptMovie> Movies,
+    IReadOnlyList<ChatGptTasteNote> TasteNotes);
 
 public sealed record ChatGptExportStatistics(
     int TotalSeries,
@@ -27,6 +30,7 @@ public sealed record ChatGptSeries(
     decimal? Rating,
     int? WatchedEpisodes,
     int? RemainingEpisodes,
+    IReadOnlyList<ChatGptNote> Notes,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? SourceStatus = null);
 
 public sealed record ChatGptMovie(
@@ -36,7 +40,12 @@ public sealed record ChatGptMovie(
     decimal? Rating,
     DateOnly? WatchedDate,
     int? DurationMinutes,
+    IReadOnlyList<ChatGptNote> Notes,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? SourceStatus = null);
+
+public sealed record ChatGptNote(string Text, DateTimeOffset CreatedAt, string Source);
+
+public sealed record ChatGptTasteNote(string Text, DateTimeOffset CreatedAt, string Source);
 
 public static class ChatGptLibraryExporter
 {
@@ -50,19 +59,22 @@ public static class ChatGptLibraryExporter
     public static ChatGptLibraryExport Read(SqliteStore store, DateTimeOffset? generatedAt = null)
     {
         using var connection = store.OpenReadOnly();
+        var notesByMedia = LoadAssistantNotes(store, connection);
         var series = store.GetSeries(connection)
             .OrderBy(x => x.Title, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.Id)
             .Select(x =>
             {
                 var (status, sourceStatus) = NormalizeSeriesStatus(x.Status);
-                return new ChatGptSeries(x.Id, x.Title, status, x.Rating, x.WatchedEpisodeCount, x.RemainingEpisodeCount, sourceStatus);
+                return new ChatGptSeries(x.Id, x.Title, status, x.Rating, x.WatchedEpisodeCount,
+                    x.RemainingEpisodeCount, notesByMedia.GetValueOrDefault((MediaType.Series, x.Id), []), sourceStatus);
             }).ToArray();
         var movies = store.GetMovies(connection)
             .OrderBy(x => x.Title, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.Id)
             .Select(x =>
             {
                 var (status, sourceStatus) = NormalizeMovieStatus(x.Status);
-                return new ChatGptMovie(x.Id, x.Title, status, x.Rating, x.WatchedDate, x.DurationMinutes, sourceStatus);
+                return new ChatGptMovie(x.Id, x.Title, status, x.Rating, x.WatchedDate, x.DurationMinutes,
+                    notesByMedia.GetValueOrDefault((MediaType.Movie, x.Id), []), sourceStatus);
             }).ToArray();
 
         var statistics = new ChatGptExportStatistics(
@@ -73,10 +85,18 @@ public static class ChatGptLibraryExporter
             CountStatuses(series.Select(x => x.Status), "watching", "completed", "dropped", "planned", "unknown"),
             CountStatuses(movies.Select(x => x.Status), "completed", "planned", "unknown"));
 
-        return new ChatGptLibraryExport(1, generatedAt ?? DateTimeOffset.UtcNow, statistics, series, movies);
+        var tasteNotes = store.GetTasteNotes(connection)
+            .Select(x => new ChatGptTasteNote(x.Text, x.CreatedAt, x.Source)).ToArray();
+
+        return new ChatGptLibraryExport(2, generatedAt ?? DateTimeOffset.UtcNow, statistics, series, movies, tasteNotes);
     }
 
     public static byte[] Serialize(ChatGptLibraryExport export) => JsonSerializer.SerializeToUtf8Bytes(export, JsonOptions);
+
+    private static Dictionary<(MediaType MediaType, Guid MediaId), ChatGptNote[]> LoadAssistantNotes(SqliteStore store, SqliteConnection connection) =>
+        store.GetAssistantNotes(connection)
+            .GroupBy(x => (x.MediaType, x.MediaId))
+            .ToDictionary(g => g.Key, g => g.Select(x => new ChatGptNote(x.Text, x.CreatedAt, x.Source)).ToArray());
 
     private static (string Status, string? SourceStatus) NormalizeSeriesStatus(string value) => Normalize(value, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {

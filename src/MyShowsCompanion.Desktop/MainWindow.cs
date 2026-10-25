@@ -19,6 +19,8 @@ public sealed class MainWindow : Window
     private readonly WorkbookImporter _importer;
     private readonly Button _syncButton;
     private readonly Button _exportButton;
+    private readonly Button _notesImportButton;
+    private readonly ChatGptNotesImporter _notesImporter;
     private readonly TextBlock _lastImport;
     private readonly TextBlock _seriesCount;
     private readonly TextBlock _movieCount;
@@ -40,11 +42,14 @@ public sealed class MainWindow : Window
         _store = new SqliteStore(databasePath);
         _library = new LibraryService(_store);
         _importer = new WorkbookImporter(_store);
+        _notesImporter = new ChatGptNotesImporter(_store);
 
         _syncButton = new Button { Content = "Синхронизировать", Padding = new Thickness(18, 10), MinWidth = 174 };
         _syncButton.Click += async (_, _) => await SynchronizeAsync();
         _exportButton = new Button { Content = "Экспорт для ChatGPT", Padding = new Thickness(18, 10), MinWidth = 190 };
         _exportButton.Click += async (_, _) => await ExportForChatGptAsync();
+        _notesImportButton = new Button { Content = "Импортировать заметки ChatGPT", Padding = new Thickness(18, 10), MinWidth = 230 };
+        _notesImportButton.Click += async (_, _) => await ImportChatGptNotesAsync();
         _lastImport = new TextBlock { Text = "Последний импорт: нет данных", VerticalAlignment = VerticalAlignment.Center, Foreground = Brush.Parse("#657180") };
         _seriesCount = new TextBlock(); _movieCount = new TextBlock(); _episodeCount = new TextBlock();
         _unresolvedBanner = new TextBlock { IsVisible = false, Foreground = Brush.Parse("#657180"), VerticalAlignment = VerticalAlignment.Center };
@@ -57,7 +62,7 @@ public sealed class MainWindow : Window
 
         var root = new DockPanel { LastChildFill = true, Margin = new Thickness(24) };
         var top = new StackPanel { Spacing = 16 };
-        var header = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), VerticalAlignment = VerticalAlignment.Center };
+        var header = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto,Auto"), VerticalAlignment = VerticalAlignment.Center };
         header.Children.Add(new StackPanel
         {
             Spacing = 4,
@@ -68,7 +73,8 @@ public sealed class MainWindow : Window
             }
         });
         Grid.SetColumn(_exportButton, 1); header.Children.Add(_exportButton);
-        Grid.SetColumn(_syncButton, 2); header.Children.Add(_syncButton);
+        Grid.SetColumn(_notesImportButton, 2); header.Children.Add(_notesImportButton);
+        Grid.SetColumn(_syncButton, 3); header.Children.Add(_syncButton);
         top.Children.Add(header);
 
         var cards = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
@@ -216,6 +222,41 @@ public sealed class MainWindow : Window
             await ShowMessageAsync("Ошибка экспорта", FriendlyError(ex));
         }
         finally { _exportButton.IsEnabled = true; }
+    }
+
+    private async Task ImportChatGptNotesAsync()
+    {
+        try
+        {
+            var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Выберите файл myshows-notes.json",
+                AllowMultiple = false,
+                FileTypeFilter = new[] { new FilePickerFileType("JSON заметок ChatGPT") { Patterns = new[] { "*.json" } } }
+            });
+            if (files.Count == 0) return;
+
+            _notesImportButton.IsEnabled = false;
+            _status.Text = "Проверяю и импортирую заметки ChatGPT…";
+            var result = await Task.Run(() => _notesImporter.Import(files[0].Path.LocalPath));
+            if (!result.Succeeded)
+            {
+                _status.Text = "Заметки не импортированы. База не изменена.";
+                await ShowMessageAsync("Не удалось импортировать заметки",
+                    "Файл не прошёл проверку. Ничего не сохранено.\n\n" + string.Join("\n", result.Errors));
+                return;
+            }
+
+            await RefreshAsync(showErrors: false);
+            _status.Text = "Импорт заметок завершён.";
+            await ShowMessageAsync("Импорт заметок ChatGPT", result.FormatSummary());
+        }
+        catch (Exception ex)
+        {
+            _status.Text = "Импорт заметок не выполнен.";
+            await ShowMessageAsync("Ошибка импорта заметок", FriendlyError(ex));
+        }
+        finally { _notesImportButton.IsEnabled = true; }
     }
 
     private async Task RefreshAsync(bool showErrors = true)

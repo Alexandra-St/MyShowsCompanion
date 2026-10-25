@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "entityNotes": [
+    {
+      "mediaType": "series",
+      "mediaId": "00000000-0000-4000-8000-000000000001",
+      "text": "Synthetic example: dropped because the pacing felt repetitive.",
+      "createdAt": "2026-10-25T20:00:00+00:00",
+      "source": "chatgpt"
+    }
+  ],
+  "tasteNotes": [
+    {
+      "text": "Synthetic example: prefers psychologically complicated relationships over conventional romance.",
+      "createdAt": "2026-10-25T20:00:00+00:00",
+      "source": "chatgpt"
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using MyShowsCompanion.Domain;
 using MyShowsCompanion.Services;
 using MyShowsCompanion.Storage;
 
@@ -31,7 +32,7 @@ public sealed class ChatGptLibraryExporterTests : IDisposable
         var movies = root.GetProperty("movies").EnumerateArray().ToArray();
         var statistics = root.GetProperty("statistics");
 
-        Assert.Equal(1, root.GetProperty("schemaVersion").GetInt32());
+        Assert.Equal(2, root.GetProperty("schemaVersion").GetInt32());
         Assert.Equal(instant, root.GetProperty("generatedAt").GetDateTimeOffset());
         Assert.Equal(5, series.Length);
         Assert.Equal(3, movies.Length);
@@ -63,9 +64,57 @@ public sealed class ChatGptLibraryExporterTests : IDisposable
         Assert.Equal("On hold", movies[1].GetProperty("sourceStatus").GetString());
 
         Assert.False(root.TryGetProperty("episodes", out _));
+        Assert.Empty(root.GetProperty("tasteNotes").EnumerateArray());
+        Assert.All(series, item => Assert.Empty(item.GetProperty("notes").EnumerateArray()));
+        Assert.All(movies, item => Assert.Empty(item.GetProperty("notes").EnumerateArray()));
         Assert.All(series, item => Assert.False(item.TryGetProperty("episodeList", out _)));
         Assert.All(movies, item => Assert.False(item.TryGetProperty("episodeList", out _)));
         Assert.Contains("Зулу 世界", System.Text.Encoding.UTF8.GetString(json));
+    }
+
+    [Fact]
+    public void ExportsEntityNotesAndTasteNotesWithoutInternalNoteIds()
+    {
+        var mediaId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        var movieId = Guid.Parse("00000000-0000-0000-0000-000000000004");
+        var first = new DateTimeOffset(2026, 10, 24, 10, 0, 0, TimeSpan.Zero);
+        var second = first.AddDays(1);
+        _store.AddAssistantNote(new(Guid.NewGuid(), MediaType.Series, mediaId,
+            "Enjoys thoughtful science fiction.", first, "chatgpt"));
+        _store.AddAssistantNote(new(Guid.NewGuid(), MediaType.Series, mediaId,
+            "Prefers character-driven stories.", second, "chatgpt"));
+        _store.AddAssistantNote(new(Guid.NewGuid(), MediaType.Movie, movieId,
+            "Likes a quiet, hopeful ending.", first, "chatgpt"));
+        _store.AddTasteNote(new(Guid.NewGuid(),
+            "Не любит случайные романтические линии ради драмы.", second, "chatgpt"));
+
+        var json = ChatGptLibraryExporter.Serialize(ChatGptLibraryExporter.Read(_store));
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        var series = root.GetProperty("series").EnumerateArray().Single(x => x.GetProperty("id").GetGuid() == mediaId);
+        var movies = root.GetProperty("movies").EnumerateArray().Single(x => x.GetProperty("id").GetGuid() == movieId);
+        var notes = series.GetProperty("notes").EnumerateArray().ToArray();
+
+        Assert.Equal(2, notes.Length);
+        Assert.Equal("Enjoys thoughtful science fiction.", notes[0].GetProperty("text").GetString());
+        Assert.Equal(first, notes[0].GetProperty("createdAt").GetDateTimeOffset());
+        Assert.Equal("chatgpt", notes[0].GetProperty("source").GetString());
+        Assert.False(notes[0].TryGetProperty("id", out _));
+        Assert.Single(movies.GetProperty("notes").EnumerateArray());
+        var taste = Assert.Single(root.GetProperty("tasteNotes").EnumerateArray());
+        Assert.Equal("Не любит случайные романтические линии ради драмы.", taste.GetProperty("text").GetString());
+        Assert.Equal("chatgpt", taste.GetProperty("source").GetString());
+        Assert.False(taste.TryGetProperty("id", out _));
+        Assert.False(root.TryGetProperty("episodes", out _));
+    }
+
+    [Fact]
+    public void StoreRequiresEntityNotesToUseExistingLocalMediaIds()
+    {
+        var note = new AssistantNote(Guid.NewGuid(), MediaType.Series, Guid.NewGuid(),
+            "Must not become orphaned.", DateTimeOffset.UtcNow, "chatgpt");
+
+        Assert.Throws<Microsoft.Data.Sqlite.SqliteException>(() => _store.AddAssistantNote(note));
     }
 
     private void Seed()

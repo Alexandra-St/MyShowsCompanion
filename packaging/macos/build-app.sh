@@ -15,7 +15,7 @@ fi
 
 mkdir -p "$ARTIFACTS"
 dotnet publish "$PROJECT" -c Release -r osx-arm64 --self-contained true \
-  -p:UseAppHost=true -p:Version=1.0.0 -o "$PUBLISH"
+  -p:UseAppHost=true -p:Version=1.1.0 -o "$PUBLISH"
 
 rm -rf "$ICONSET"
 swift "$ROOT/packaging/macos/create-placeholder-icon.swift" "$ICONSET"

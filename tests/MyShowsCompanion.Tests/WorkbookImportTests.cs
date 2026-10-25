@@ -1,4 +1,5 @@
 using ClosedXML.Excel;
+using MyShowsCompanion.Domain;
 using MyShowsCompanion.Import;
 using MyShowsCompanion.Services;
 using MyShowsCompanion.Storage;
@@ -52,6 +53,46 @@ public sealed class WorkbookImportTests : IDisposable
         var store=new SqliteStore(Path.Combine(_dir,"movie.sqlite"));store.Initialize();var importer=new WorkbookImporter(store);importer.Import(p1);Guid id;using(var c=store.Open())id=Assert.Single(store.GetMovies(c)).Id;
         var result=importer.Import(p2);using var db=store.Open();var movie=Assert.Single(store.GetMovies(db));
         Assert.Equal(1,result.MovieCounts.Updated);Assert.Equal(id,movie.Id);Assert.Equal("Полностью посмотрел",movie.Status);Assert.Equal(4.5m,movie.Rating);Assert.Equal(118,movie.DurationMinutes);Assert.Equal(new DateOnly(2025,1,2),movie.WatchedDate);
+    }
+
+    [Fact] public void MyShowsUpdatesPreserveAssistantAndTasteNotesAndTheirMediaIds()
+    {
+        var first = Make("notes-first.xlsx", [("Show", "Смотрю", "3")], [("Show", "1", "1", "Pilot", "")],
+            [("Film", "Буду смотреть", "2.5", "")]);
+        var next = Make("notes-next.xlsx", [("Show", "Полностью посмотрел", "4.5")], [("Show", "1", "1", "Pilot", "2025-02-03")],
+            [("Film", "Полностью посмотрел", "4.5", "2025-02-04")]);
+        var store = new SqliteStore(Path.Combine(_dir, "notes.sqlite"));
+        store.Initialize();
+        var importer = new WorkbookImporter(store);
+        importer.Import(first);
+        Guid seriesId;
+        Guid movieId;
+        using (var c = store.Open())
+        {
+            seriesId = Assert.Single(store.GetSeries(c)).Id;
+            movieId = Assert.Single(store.GetMovies(c)).Id;
+        }
+
+        var seriesNote = new AssistantNote(Guid.NewGuid(), MediaType.Series, seriesId,
+            "Thoughtful and character-focused.", DateTimeOffset.UtcNow, "chatgpt");
+        var movieNote = new AssistantNote(Guid.NewGuid(), MediaType.Movie, movieId,
+            "Likes a restrained ending.", DateTimeOffset.UtcNow, "chatgpt");
+        var tasteNote = new TasteNote(Guid.NewGuid(), "Avoids contrived romance.", DateTimeOffset.UtcNow, "chatgpt");
+        store.AddAssistantNote(seriesNote);
+        store.AddAssistantNote(movieNote);
+        store.AddTasteNote(tasteNote);
+
+        var result = importer.Import(next);
+
+        using var db = store.Open();
+        Assert.Equal(1, result.SeriesCounts.Updated);
+        Assert.Equal(1, result.MovieCounts.Updated);
+        Assert.Equal(seriesId, Assert.Single(store.GetSeries(db)).Id);
+        Assert.Equal(movieId, Assert.Single(store.GetMovies(db)).Id);
+        Assert.Equal(new[] { seriesNote, movieNote }.OrderBy(x => x.Id), store.GetAssistantNotes(db).OrderBy(x => x.Id));
+        Assert.Equal(seriesId, store.GetAssistantNotes(db).Single(x => x.Id == seriesNote.Id).MediaId);
+        Assert.Equal(movieId, store.GetAssistantNotes(db).Single(x => x.Id == movieNote.Id).MediaId);
+        Assert.Equal(new[] { tasteNote }, store.GetTasteNotes(db));
     }
 
     [Fact] public void DuplicateMoviesUseUniqueDurationOrRemainUnresolved()
