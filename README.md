@@ -70,7 +70,7 @@ The **Export for ChatGPT** action reads the current local database and saves a U
 
 ## Build and run
 
-Requirements: .NET 8 SDK. For the native macOS bundle, use an Apple Silicon Mac with Xcode command-line tools (for `swift` and `iconutil`).
+Requirements: .NET 8 SDK. To create the native macOS bundle, use an Apple Silicon Mac with `codesign` available for ad-hoc signing.
 
 Run the desktop application during development:
 
