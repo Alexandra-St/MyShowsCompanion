@@ -91,7 +91,7 @@ Create a self-contained macOS arm64 `.app` bundle:
 bash packaging/macos/build-app.sh
 ```
 
-The script creates `MyShows Companion.app` in the project root and refuses to overwrite an existing bundle. The current icon is a placeholder. The bundle is unsigned and not notarized.
+The script creates `MyShows Companion.app` in the project root and refuses to overwrite an existing bundle. The bundle is unsigned and not notarized.
 
 To smoke-test the sample workbook without writing a database into the repository, copy it to a temporary directory first:
 

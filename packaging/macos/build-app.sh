@@ -5,7 +5,6 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PROJECT="$ROOT/src/MyShowsCompanion.Desktop/MyShowsCompanion.Desktop.csproj"
 ARTIFACTS="$ROOT/artifacts/macos"
 PUBLISH="$ARTIFACTS/osx-arm64-publish"
-ICONSET="$ARTIFACTS/MyShowsCompanion.iconset"
 APP="$ROOT/MyShows Companion.app"
 
 if [[ -e "$APP" ]]; then
@@ -20,12 +19,10 @@ dotnet publish "$PROJECT" -c Release -r osx-arm64 --self-contained true \
   -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
   -p:DebugType=embedded -o "$PUBLISH"
 
-rm -rf "$ICONSET"
-swift "$ROOT/packaging/macos/create-placeholder-icon.swift" "$ICONSET"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$PUBLISH/MyShowsCompanion.Desktop" "$APP/Contents/MacOS/MyShowsCompanion.Desktop"
 cp "$ROOT/packaging/macos/Info.plist" "$APP/Contents/Info.plist"
-iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/MyShowsCompanion.icns"
+cp "$ROOT/packaging/macos/MyShowsCompanion.icns" "$APP/Contents/Resources/MyShowsCompanion.icns"
 chmod +x "$APP/Contents/MacOS/MyShowsCompanion.Desktop"
 codesign --force --sign - "$APP"
 
