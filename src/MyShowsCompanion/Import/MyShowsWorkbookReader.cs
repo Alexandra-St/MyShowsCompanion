@@ -53,26 +53,33 @@ public sealed class MyShowsWorkbookReader
     }
     private static decimal? Decimal(IReadOnlyDictionary<string, IXLCell> r, string key)
     {
-        var c = r[key]; if (c.IsEmpty()) return null;
+        var c = r[key]; if (IsBlank(c)) return null;
         if (c.TryGetValue<decimal>(out var n)) return n;
         var s = c.GetString().Trim();
-        return decimal.TryParse(s, NumberStyles.Number, CultureInfo.InvariantCulture, out n) ||
-               decimal.TryParse(s, NumberStyles.Number, CultureInfo.GetCultureInfo("ru-RU"), out n) ? n : null;
+        if (decimal.TryParse(s, NumberStyles.Number, CultureInfo.InvariantCulture, out n) ||
+            decimal.TryParse(s, NumberStyles.Number, CultureInfo.GetCultureInfo("ru-RU"), out n)) return n;
+        throw InvalidValue(c, key, "decimal");
     }
     private static int? Int(IReadOnlyDictionary<string, IXLCell> r, string key)
     {
-        var c = r[key]; if (c.IsEmpty()) return null;
+        var c = r[key]; if (IsBlank(c)) return null;
         if (c.TryGetValue<int>(out var n)) return n;
         var s = c.GetString().Trim();
-        return int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out n) ? n : null;
+        if (int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) return n;
+        throw InvalidValue(c, key, "integer");
     }
     private static DateOnly? Date(IReadOnlyDictionary<string, IXLCell> r, string key)
     {
-        var c = r[key]; if (c.IsEmpty()) return null;
+        var c = r[key]; if (IsBlank(c)) return null;
         if (c.TryGetValue<DateTime>(out var dt)) return DateOnly.FromDateTime(dt);
         var s = c.GetString().Trim();
         if (DateOnly.TryParse(s, CultureInfo.GetCultureInfo("ru-RU"), DateTimeStyles.None, out var d)) return d;
         if (DateOnly.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out d)) return d;
-        return null;
+        throw InvalidValue(c, key, "date");
     }
+
+    private static bool IsBlank(IXLCell cell) => cell.IsEmpty() || string.IsNullOrWhiteSpace(cell.GetString());
+
+    private static InvalidDataException InvalidValue(IXLCell cell, string field, string expected) =>
+        new($"Некорректное значение «{cell.GetFormattedString(CultureInfo.InvariantCulture)}» для поля «{field}» в {cell.Worksheet.Name}!{cell.Address}: ожидалось значение типа {expected}.");
 }

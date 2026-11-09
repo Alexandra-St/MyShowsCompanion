@@ -14,15 +14,19 @@ if [[ -e "$APP" ]]; then
 fi
 
 mkdir -p "$ARTIFACTS"
+rm -rf "$PUBLISH"
 dotnet publish "$PROJECT" -c Release -r osx-arm64 --self-contained true \
-  -p:UseAppHost=true -p:Version=1.1.0 -o "$PUBLISH"
+  -p:UseAppHost=true -p:Version=1.1.1 \
+  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
+  -p:DebugType=embedded -o "$PUBLISH"
 
 rm -rf "$ICONSET"
 swift "$ROOT/packaging/macos/create-placeholder-icon.swift" "$ICONSET"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp -R "$PUBLISH/." "$APP/Contents/MacOS/"
+cp "$PUBLISH/MyShowsCompanion.Desktop" "$APP/Contents/MacOS/MyShowsCompanion.Desktop"
 cp "$ROOT/packaging/macos/Info.plist" "$APP/Contents/Info.plist"
 iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/MyShowsCompanion.icns"
 chmod +x "$APP/Contents/MacOS/MyShowsCompanion.Desktop"
+codesign --force --sign - "$APP"
 
 echo "Created: $APP"

@@ -11,8 +11,9 @@ artifacts/
 .DS_Store
 
 # Private MyShows exports and local databases
-Профиль.xlsx
-myshows-chatgpt.json
+Профиль*.xlsx
+myshows-chatgpt*.json
+myshows-notes*.json
 *.sqlite*
 *.db
 *.db-*

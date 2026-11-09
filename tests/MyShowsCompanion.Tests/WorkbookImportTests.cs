@@ -22,6 +22,65 @@ public sealed class WorkbookImportTests : IDisposable
     }
     [Theory] [InlineData("3.5")] [InlineData("4.5")]
     public void ReadsHalfPointRatings(string rating){var p=Make("rating.xlsx",[("Show","Перестал",rating)],[],[]);Assert.Equal(decimal.Parse(rating,System.Globalization.CultureInfo.InvariantCulture),new MyShowsWorkbookReader().Read(p).Series[0].Rating);}
+    [Theory]
+    [InlineData("decimal", "Сериалы", "C2", "Оценка", "decimal")]
+    [InlineData("integer", "Сериалы", "D2", "Длительность серии, мин.", "integer")]
+    [InlineData("date", "Фильмы", "D2", "Дата просмотра", "date")]
+    public void RejectsInvalidNonemptyNullableValuesWithCellContext(
+        string name, string sheet, string address, string field, string expected)
+    {
+        var path = Make($"invalid-{name}.xlsx", [("Show", "Смотрю", "3")], [],
+            [("Film", "Буду смотреть", "4", "")]);
+        Set(path, sheet, (address, "abc"));
+
+        var error = Assert.Throws<InvalidDataException>(() => new MyShowsWorkbookReader().Read(path));
+
+        Assert.Contains("abc", error.Message);
+        Assert.Contains(field, error.Message);
+        Assert.Contains($"{sheet}!{address}", error.Message);
+        Assert.Contains($"типа {expected}", error.Message);
+    }
+
+    [Fact]
+    public void BlankNullableValuesRemainNull()
+    {
+        var path = Make("nullable.xlsx", [("Show", "Смотрю", "")],
+            [("Show", "", "", "", "")], [("Film", "Буду смотреть", "", "")]);
+
+        var parsed = new MyShowsWorkbookReader().Read(path);
+
+        Assert.Null(Assert.Single(parsed.Series).Rating);
+        Assert.Null(parsed.Series[0].EpisodeDurationMinutes);
+        var episode = Assert.Single(parsed.Episodes);
+        Assert.Null(episode.Season);
+        Assert.Null(episode.EpisodeNumber);
+        Assert.Null(episode.WatchedDate);
+        var movie = Assert.Single(parsed.Movies);
+        Assert.Null(movie.Rating);
+        Assert.Null(movie.DurationMinutes);
+        Assert.Null(movie.WatchedDate);
+    }
+
+    [Fact]
+    public void InvalidValueFailsBeforeChangingPreviouslyImportedDatabase()
+    {
+        var initial = Make("initial.xlsx", [("Show", "Смотрю", "3")], [], []);
+        var invalid = Make("invalid-import.xlsx", [("Show", "Перестал", "4.5")], [], []);
+        Set(invalid, "Сериалы", ("C2", "not-a-rating"));
+        var store = new SqliteStore(Path.Combine(_dir, "invalid-import.sqlite"));
+        store.Initialize();
+        var importer = new WorkbookImporter(store);
+        importer.Import(initial);
+
+        Assert.Throws<InvalidDataException>(() => importer.Import(invalid));
+
+        using var connection = store.OpenReadOnly();
+        Assert.Equal(3m, Assert.Single(store.GetSeries(connection)).Rating);
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM ImportRun";
+        Assert.Equal(1L, (long)command.ExecuteScalar()!);
+    }
+
     [Fact] public void ReimportSameFileIsIdempotent()
     {
         var p=Make("same.xlsx",[("Show","Смотрю","3")],[("Show","1","1","Pilot","")],[("Film","Полностью посмотрел","4","")]);
