@@ -91,7 +91,7 @@ Create a self-contained macOS arm64 `.app` bundle:
 bash packaging/macos/build-app.sh
 ```
 
-The script creates `MyShows Companion.app` in the project root and refuses to overwrite an existing bundle. The bundle is unsigned and not notarized.
+The script creates `MyShows Companion.app` in the project root and refuses to overwrite an existing bundle. The bundle is ad-hoc signed, not Developer ID signed, and not notarized.
 
 To smoke-test the sample workbook without writing a database into the repository, copy it to a temporary directory first:
 
@@ -119,4 +119,4 @@ dotnet test MyShowsCompanion.slnx
 - The app does not provide recommendations or call the OpenAI API.
 - Notes are append-only; there is no UI for editing or deleting them.
 - Episode ratings are not stored in the domain model or included in ChatGPT export.
-- The macOS bundle is unsigned/not notarized.
+- The macOS bundle is ad-hoc signed, not Developer ID signed, and not notarized.
